@@ -4,6 +4,12 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover"/>
   <title>Muvdas</title>
+  <link rel="manifest" href="./manifest.json"/>
+  <meta name="theme-color" content="#111111"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Muvdas"/>
+  <link rel="apple-touch-icon" href="./icon-192.png"/>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -2548,6 +2554,20 @@ ${notionMoves.length}\u4EF6\u306E\u30E0\u30FC\u30D6\u3092\u30DE\u30FC\u30B8\u305
   <script>
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(React.createElement(__app__.default));
+  </script>
+  <script>
+    // Register Service Worker for PWA / offline support
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function() {
+        navigator.serviceWorker.register("./sw.js").then(function(reg) {
+          console.log("Muvdas: SW registered", reg.scope);
+          // Check for updates periodically
+          setInterval(function() { reg.update(); }, 60 * 60 * 1000);
+        }).catch(function(err) {
+          console.warn("Muvdas: SW registration failed", err);
+        });
+      });
+    }
   </script>
 </body>
 </html>
