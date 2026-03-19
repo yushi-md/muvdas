@@ -2415,6 +2415,7 @@ ${rows}
     const [savedChoreos, setSavedChoreos] = useState(_saved?.savedChoreos ?? []);
     const [practiceLog, setPracticeLog] = useState(_saved?.practiceLog ?? []);
     const [tab, setTab] = useState("db");
+    const [choreoSub, setChoreoSub] = useState("structure");
     const [selectedMove, setSelectedMove] = useState(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [search, setSearch] = useState("");
@@ -2656,12 +2657,10 @@ ${notionMoves.length}\u4EF6\u306E\u30E0\u30FC\u30D6\u3092\u30DE\u30FC\u30B8\u305
     }, []);
     const TABS = [
       { id: "db", label: "\u{1F4DA} \u30E0\u30FC\u30D6DB", icon: "\u{1F4DA}", short: "DB" },
-      { id: "library", label: "\u{1F4CE} \u8CC7\u6599\u30FB\u30E1\u30E2", icon: "\u{1F4CE}", short: "\u8CC7\u6599", badge: resources.length + notes.length > 0 ? resources.length + notes.length : null },
-      { id: "structure", label: "\u{1F3BC} \u697D\u66F2\u69CB\u6210", icon: "\u{1F3BC}", short: "\u69CB\u6210", badge: songConfig.sections.length > 0 ? songConfig.sections.length : null },
-      { id: "gen", label: "\u{1F3B5} \u30B3\u30EC\u30AA\u751F\u6210", icon: "\u{1F3B5}", short: "\u751F\u6210" },
+      { id: "choreo", label: "\u{1F3B5} \u30B3\u30EC\u30AA", icon: "\u{1F3B5}", short: "\u30B3\u30EC\u30AA" },
       { id: "saved", label: "\u{1F4BE} \u4FDD\u5B58\u6E08\u307F", icon: "\u{1F4BE}", short: "\u4FDD\u5B58", badge: savedChoreos.length > 0 ? savedChoreos.length : null },
-      { id: "rhythm", label: "\u{1F3A4} \u30EA\u30BA\u30E0\u5165\u529B", icon: "\u{1F3A4}", short: "\u30EA\u30BA\u30E0" },
-      { id: "practicelog", label: "\u{1F4C5} \u7DF4\u7FD2\u30ED\u30B0", icon: "\u{1F4C5}", short: "\u7DF4\u7FD2", badge: practiceLog.filter((e) => e.date === todayStr()).length > 0 ? practiceLog.filter((e) => e.date === todayStr()).length : null }
+      { id: "practice", label: "\u{1F4CA} \u7DF4\u7FD2", icon: "\u{1F4CA}", short: "\u7DF4\u7FD2", badge: practiceLog.filter((e) => e.date === todayStr()).length > 0 ? practiceLog.filter((e) => e.date === todayStr()).length : null },
+      { id: "library", label: "\u{1F4CE} \u8CC7\u6599", icon: "\u{1F4CE}", short: "\u8CC7\u6599", badge: resources.length + notes.length > 0 ? resources.length + notes.length : null }
     ];
     return /* @__PURE__ */ React.createElement("div", { className: "min-h-screen bg-white font-sans antialiased" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white border-b border-gray-100 sticky top-0 z-20" }, /* @__PURE__ */ React.createElement("div", { className: "max-w-5xl mx-auto px-4 py-2 sm:px-6 flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2.5" }, /* @__PURE__ */ React.createElement("span", { className: "text-lg leading-none" }, "\u{1F57A}"), /* @__PURE__ */ React.createElement("h1", { className: "text-sm font-semibold text-gray-900 tracking-tight" }, "Muvdas"), /* @__PURE__ */ React.createElement("span", { className: "hidden md:inline text-xs text-gray-300 pl-2 border-l border-gray-100" }, moves.length, " moves \xB7 avg ", avgProgress, "/5")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-1" }, /* @__PURE__ */ React.createElement(
       "button",
@@ -2713,7 +2712,7 @@ ${notionMoves.length}\u4EF6\u306E\u30E0\u30FC\u30D6\u3092\u30DE\u30FC\u30B8\u305
       },
       t.label,
       t.badge && /* @__PURE__ */ React.createElement("span", { className: `text-[10px] px-1 py-0.5 rounded font-semibold ${tab === t.id ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}` }, t.badge)
-    )))), /* @__PURE__ */ React.createElement("div", { className: "sm:hidden bg-white border-b border-gray-100 px-4 py-2" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs font-semibold text-gray-500" }, TABS.find((t) => t.id === tab)?.label)), /* @__PURE__ */ React.createElement("div", { className: "max-w-5xl mx-auto px-4 py-5 sm:px-6 sm:py-7 pb-28 sm:pb-7" }, tab === "db" && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 mb-3" }, /* @__PURE__ */ React.createElement("input", { className: "flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-0 focus:border-gray-400 bg-white", placeholder: "\u691C\u7D22...", value: search, onChange: (e) => setSearch(e.target.value) }), /* @__PURE__ */ React.createElement(
+    )))), /* @__PURE__ */ React.createElement("div", { className: "sm:hidden bg-white border-b border-gray-100 px-4 py-2" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs font-semibold text-gray-500" }, TABS.find((t) => t.id === tab)?.label)), /* @__PURE__ */ React.createElement("div", { className: "max-w-5xl mx-auto px-4 py-4 sm:px-6 sm:py-6 pb-24 sm:pb-7" }, tab === "db" && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "sticky top-[41px] sm:static z-10 bg-white pb-3 flex items-center gap-2 mb-3" }, /* @__PURE__ */ React.createElement("input", { className: "flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-0 focus:border-gray-400 bg-white", placeholder: "\u691C\u7D22...", value: search, onChange: (e) => setSearch(e.target.value) }), /* @__PURE__ */ React.createElement(
       "button",
       {
         type: "button",
@@ -2806,9 +2805,22 @@ ${notionMoves.length}\u4EF6\u306E\u30E0\u30FC\u30D6\u3092\u30DE\u30FC\u30B8\u305
         },
         "\u2192"
       ));
-    })()), tab === "structure" && /* @__PURE__ */ React.createElement(SongStructureEditor, { songConfig, onUpdateConfig: setSongConfig }), tab === "gen" && /* @__PURE__ */ React.createElement(ChoreographyGenerator, { moves, songConfig, onGoToStructure: () => setTab("structure"), onSaveChoreo: (choreo) => {
+    })()), tab === "choreo" && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 mb-5" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setChoreoSub("structure"), className: `flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${choreoSub === "structure" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}` }, "\u{1F3BC} \u697D\u66F2\u69CB\u6210"), /* @__PURE__ */ React.createElement("button", { onClick: () => setChoreoSub("gen"), className: `flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${choreoSub === "gen" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}` }, "\u{1F3B5} \u751F\u6210"), /* @__PURE__ */ React.createElement("button", { onClick: () => setChoreoSub("rhythm"), className: `flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${choreoSub === "rhythm" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}` }, "\u{1F3A4} \u30EA\u30BA\u30E0")), choreoSub === "structure" && /* @__PURE__ */ React.createElement(SongStructureEditor, { songConfig, onUpdateConfig: setSongConfig }), choreoSub === "gen" && /* @__PURE__ */ React.createElement(ChoreographyGenerator, { moves, songConfig, onGoToStructure: () => {
+      setChoreoSub("structure");
+      setTab("choreo");
+    }, onSaveChoreo: (choreo) => {
       setSavedChoreos((prev) => [...prev, choreo]);
-    } }), tab === "saved" && /* @__PURE__ */ React.createElement(
+    } }), choreoSub === "rhythm" && /* @__PURE__ */ React.createElement(
+      RhythmInputTab,
+      {
+        songConfig,
+        onApplyConfig: (config) => {
+          setSongConfig(config);
+          setChoreoSub("structure");
+          setTab("choreo");
+        }
+      }
+    )), tab === "saved" && /* @__PURE__ */ React.createElement(
       SavedChoreoTab,
       {
         savedChoreos,
@@ -2816,16 +2828,7 @@ ${notionMoves.length}\u4EF6\u306E\u30E0\u30FC\u30D6\u3092\u30DE\u30FC\u30B8\u305
         onDelete: (id) => setSavedChoreos((prev) => prev.filter((c) => c.id !== id)),
         allMoves: moves
       }
-    ), tab === "rhythm" && /* @__PURE__ */ React.createElement(
-      RhythmInputTab,
-      {
-        songConfig,
-        onApplyConfig: (config) => {
-          setSongConfig(config);
-          setTab("structure");
-        }
-      }
-    ), tab === "practicelog" && /* @__PURE__ */ React.createElement(
+    ), tab === "practice" && /* @__PURE__ */ React.createElement(
       PracticeLogTab,
       {
         practiceLog,
@@ -2849,11 +2852,11 @@ ${notionMoves.length}\u4EF6\u306E\u30E0\u30FC\u30D6\u3092\u30DE\u30FC\u30B8\u305
       {
         key: t.id,
         onClick: () => setTab(t.id),
-        className: `flex-1 flex flex-col items-center justify-center gap-0.5 py-2 relative transition-colors ${tab === t.id ? "text-gray-900" : "text-gray-300"}`
+        className: `flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative transition-colors ${tab === t.id ? "text-gray-900" : "text-gray-300"}`
       },
       tab === t.id && /* @__PURE__ */ React.createElement("span", { className: "absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-gray-900 rounded-full" }),
-      /* @__PURE__ */ React.createElement("span", { className: "text-lg leading-none" }, t.icon),
-      /* @__PURE__ */ React.createElement("span", { className: "text-[9px] font-medium leading-tight" }, t.short),
+      /* @__PURE__ */ React.createElement("span", { className: "text-xl leading-none" }, t.icon),
+      /* @__PURE__ */ React.createElement("span", { className: "text-[10px] font-medium leading-tight" }, t.short),
       t.badge ? /* @__PURE__ */ React.createElement("span", { className: "absolute top-1 right-[16%] min-w-[13px] h-[13px] bg-gray-900 text-white text-[8px] rounded-full flex items-center justify-center font-bold px-0.5" }, t.badge > 9 ? "9+" : t.badge) : null
     )))), selectedMove && /* @__PURE__ */ React.createElement(
       MoveModal,
