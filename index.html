@@ -243,6 +243,100 @@ var __app__ = (() => {
   function choreoDuration(totalCounts, bpm) {
     return totalCounts * (60 / bpm);
   }
+  function buildChoreoHtml(title, artist, bpm, timeStr, sectionsData) {
+    const rows = sectionsData.map((sec) => {
+      const mpp = sec.movesPerPhrase || 1;
+      const countsPerMove = Math.floor(sec.countsPerPhrase / mpp);
+      const moveRows = sec.moves.map((item, idx) => {
+        const phraseIdx = Math.floor(idx / mpp);
+        const moveIdxInPhrase = idx % mpp;
+        const phraseStart = phraseIdx * sec.countsPerPhrase + 1;
+        const start = mpp > 1 ? phraseStart + moveIdxInPhrase * countsPerMove : phraseStart;
+        const end = mpp > 1 ? start + countsPerMove - 1 : phraseStart + sec.countsPerPhrase - 1;
+        const label8 = mpp > 1 ? `${phraseIdx + 1}\u30A8\u30A4\u30C8\u76EE ${moveIdxInPhrase + 1}\u756A\u76EE` : `${phraseIdx + 1}\u30A8\u30A4\u30C8\u76EE`;
+        const varText = item.variationName ? ` (${item.variationName})` : "";
+        return `<tr><td class="ct">${start}\u2013${end}ct</td><td class="label8">${label8}</td><td class="move">${item.moveName || "\uFF08\u672A\u914D\u7F6E\uFF09"}${varText}</td><td class="genre">${item.genre || ""}</td><td class="level">${item.level || ""}</td></tr>`;
+      }).join("");
+      return `<div class="section"><div class="sec-header">${sec.label} <span class="sec-sub">${sec.phrases}\u30A8\u30A4\u30C8 \xD7 ${sec.countsPerPhrase}ct</span></div><table><thead><tr><th>\u30AB\u30A6\u30F3\u30C8</th><th>\u30A8\u30A4\u30C8</th><th>\u30E0\u30FC\u30D6</th><th>\u30B8\u30E3\u30F3\u30EB</th><th>\u96E3\u6613\u5EA6</th></tr></thead><tbody>${moveRows}</tbody></table></div>`;
+    }).join("");
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/>
+<title>${title} - \u30B3\u30EC\u30AA\u30B0\u30E9\u30D5</title>
+<style>
+  body { font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #111; padding: 20px 28px; font-size: 12px; background: #fff; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .artist { color: #666; font-size: 13px; margin: 0 0 4px; }
+  .meta { color: #888; font-size: 11px; margin-bottom: 18px; }
+  .section { margin-bottom: 20px; page-break-inside: avoid; }
+  .sec-header { font-size: 13px; font-weight: bold; background: #f3f0ff; padding: 5px 10px; border-radius: 6px 6px 0 0; border: 1px solid #ddd6fe; border-bottom: none; }
+  .sec-sub { font-weight: normal; color: #7c3aed; font-size: 11px; margin-left: 8px; }
+  table { width: 100%; border-collapse: collapse; border: 1px solid #ddd6fe; border-top: none; }
+  th { background: #faf5ff; text-align: left; padding: 4px 8px; font-size: 10px; color: #6b21a8; border-bottom: 1px solid #e9d5ff; }
+  td { padding: 5px 8px; border-bottom: 1px solid #f5f3ff; }
+  tr:last-child td { border-bottom: none; }
+  td.ct { color: #aaa; font-size: 10px; white-space: nowrap; width: 80px; }
+  td.label8 { color: #888; font-size: 10px; white-space: nowrap; width: 110px; }
+  td.move { font-weight: 600; }
+  td.genre { color: #7c3aed; font-size: 11px; width: 80px; }
+  td.level { color: #666; font-size: 11px; width: 60px; }
+  @media print { body { padding: 10px 14px; } }
+</style></head><body>
+<h1>${title}</h1>
+${artist ? `<p class="artist">${artist}</p>` : ""}
+<p class="meta">BPM ${bpm}${timeStr ? ` \xB7 ${timeStr}` : ""} \xB7 Muvdas</p>
+${rows}
+</body></html>`;
+  }
+  function exportChoreoAsPrint(html) {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 400);
+  }
+  function exportChoreoAsImage(html, filename) {
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:800px;height:2000px;border:none;";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    setTimeout(() => {
+      const body = iframe.contentDocument.body;
+      const w = body.scrollWidth;
+      const h = body.scrollHeight;
+      const serialized = new XMLSerializer().serializeToString(iframe.contentDocument.documentElement);
+      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
+      const canvas = document.createElement("canvas");
+      const scale = 2;
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            document.body.removeChild(iframe);
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename || "choreo.png";
+          a.click();
+          URL.revokeObjectURL(url);
+          document.body.removeChild(iframe);
+        }, "image/png");
+      };
+      img.onerror = () => {
+        document.body.removeChild(iframe);
+        exportChoreoAsPrint(html);
+      };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgStr);
+    }, 300);
+  }
   function getYouTubeId(url) {
     if (!url) return null;
     try {
@@ -944,6 +1038,11 @@ var __app__ = (() => {
     const [choreo, setChoreo] = useState(null);
     const [saveTitle, setSaveTitle] = useState("");
     const [showSaveForm, setShowSaveForm] = useState(false);
+    const [mode, setMode] = useState("auto");
+    const [manualSlotPicking, setManualSlotPicking] = useState(null);
+    const [manualSearch, setManualSearch] = useState("");
+    const [manualPickedMove, setManualPickedMove] = useState(null);
+    const [manualPickedVar, setManualPickedVar] = useState(null);
     const [savedFlash, setSavedFlash] = useState(false);
     const [editingPhrase, setEditingPhrase] = useState(null);
     const [editSearch, setEditSearch] = useState("");
@@ -1005,6 +1104,48 @@ var __app__ = (() => {
       if (sections.length === 0 || eligible.length === 0) return;
       setChoreo({ result: sections.map((sec) => ({ section: sec, phrases: generateSection(sec) })), bpm, genre, time: (/* @__PURE__ */ new Date()).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) });
     }
+    function generateEmptyChoreo() {
+      if (sections.length === 0) return;
+      setChoreo({ result: sections.map((sec) => {
+        const mpp = sec.movesPerPhrase || 1;
+        const phrases = [];
+        for (let p = 0; p < sec.phrases; p++) {
+          const phraseItems = [];
+          for (let m = 0; m < mpp; m++) phraseItems.push({ move: null, variation: null });
+          phrases.push(phraseItems);
+        }
+        return { section: sec, phrases };
+      }), bpm, genre, time: (/* @__PURE__ */ new Date()).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) });
+    }
+    function setManualMove(sectionId, phraseIdx, moveIdx, move, variation) {
+      setChoreo((prev) => ({ ...prev, result: prev.result.map((r) => {
+        if (r.section.id !== sectionId) return r;
+        const newPhrases = r.phrases.map((phraseItems, pIdx) => {
+          if (pIdx !== phraseIdx) return phraseItems;
+          return phraseItems.map((item, mIdx) => mIdx === moveIdx ? { move, variation } : item);
+        });
+        return { ...r, phrases: newPhrases };
+      }) }));
+      setManualSlotPicking(null);
+      setManualSearch("");
+      setManualPickedMove(null);
+      setManualPickedVar(null);
+    }
+    function clearManualSlot(sectionId, phraseIdx, moveIdx) {
+      setChoreo((prev) => ({ ...prev, result: prev.result.map((r) => {
+        if (r.section.id !== sectionId) return r;
+        const newPhrases = r.phrases.map((phraseItems, pIdx) => {
+          if (pIdx !== phraseIdx) return phraseItems;
+          return phraseItems.map((item, mIdx) => mIdx === moveIdx ? { move: null, variation: null } : item);
+        });
+        return { ...r, phrases: newPhrases };
+      }) }));
+    }
+    const manualPickerMoves = useMemo(() => {
+      if (!manualSearch.trim()) return eligible;
+      const q = manualSearch.trim().toLowerCase();
+      return eligible.filter((m) => m.name.toLowerCase().includes(q) || m.genre.toLowerCase().includes(q) || (m.tags || []).some((t) => t.toLowerCase().includes(q)));
+    }, [eligible, manualSearch]);
     function regenerateSection(id) {
       if (!choreo) return;
       const sec = sections.find((s) => s.id === id);
@@ -1043,62 +1184,34 @@ var __app__ = (() => {
       const newVar = newMove.variations.length > 0 ? newMove.variations[Math.floor(Math.random() * newMove.variations.length)] : null;
       swapPhrase(sectionId, phraseIdx, moveIdx, newMove, newVar);
     }
+    function getChoreoSectionsData() {
+      if (!choreo) return [];
+      return choreo.result.map(({ section, phrases }) => {
+        const info = SECTION_TYPES[section.type];
+        return {
+          label: section.customLabel || info.label,
+          phrases: section.phrases,
+          countsPerPhrase: section.countsPerPhrase,
+          movesPerPhrase: section.movesPerPhrase || 1,
+          moves: phrases.flat().map((item) => ({
+            moveName: item.move ? item.move.name : "\uFF08\u672A\u914D\u7F6E\uFF09",
+            genre: item.move ? item.move.genre : "",
+            level: item.move ? item.move.level : "",
+            variationName: item.variation ? item.variation.name : null
+          }))
+        };
+      });
+    }
+    function getChoreoHtml() {
+      return buildChoreoHtml(songConfig.title || "\uFF08\u66F2\u540D\u672A\u8A2D\u5B9A\uFF09", songConfig.artist || "", choreo.bpm, choreo.time, getChoreoSectionsData());
+    }
     function printChoreo() {
       if (!choreo) return;
-      const title = songConfig.title || "\uFF08\u66F2\u540D\u672A\u8A2D\u5B9A\uFF09";
-      const artist = songConfig.artist || "";
-      const rows = choreo.result.map(({ section, phrases }) => {
-        const info = SECTION_TYPES[section.type];
-        const label = section.customLabel || info.label;
-        const mpp = section.movesPerPhrase || 1;
-        const countsPerMove = Math.floor(section.countsPerPhrase / mpp);
-        const moveRows = phrases.map((phraseItems, idx) => {
-          const phraseStart = idx * section.countsPerPhrase + 1;
-          return phraseItems.map((item, moveIdx) => {
-            const start = mpp > 1 ? phraseStart + moveIdx * countsPerMove : phraseStart;
-            const end = mpp > 1 ? start + countsPerMove - 1 : phraseStart + section.countsPerPhrase - 1;
-            const label8 = mpp > 1 ? `${idx + 1}\u30A8\u30A4\u30C8\u76EE ${moveIdx + 1}\u756A\u76EE` : `${idx + 1}\u30A8\u30A4\u30C8\u76EE`;
-            const varText = item.variation ? ` (${item.variation.name})` : "";
-            return `<tr><td class="ct">${start}\u2013${end}ct</td><td class="label8">${label8}</td><td class="move">${item.move.name}${varText}</td><td class="genre">${item.move.genre}</td><td class="level">${item.move.level}</td></tr>`;
-          }).join("");
-        }).join("");
-        return `<div class="section">
-        <div class="sec-header">${label} <span class="sec-sub">${section.phrases}\u30A8\u30A4\u30C8 \xD7 ${section.countsPerPhrase}ct</span></div>
-        <table><thead><tr><th>\u30AB\u30A6\u30F3\u30C8</th><th>\u30A8\u30A4\u30C8</th><th>\u30E0\u30FC\u30D6</th><th>\u30B8\u30E3\u30F3\u30EB</th><th>\u96E3\u6613\u5EA6</th></tr></thead><tbody>${moveRows}</tbody></table>
-      </div>`;
-      }).join("");
-      const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/>
-<title>${title} - \u30B3\u30EC\u30AA\u30B0\u30E9\u30D5</title>
-<style>
-  body { font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #111; padding: 20px 28px; font-size: 12px; }
-  h1 { font-size: 20px; margin: 0 0 2px; }
-  .artist { color: #666; font-size: 13px; margin: 0 0 4px; }
-  .meta { color: #888; font-size: 11px; margin-bottom: 18px; }
-  .section { margin-bottom: 20px; page-break-inside: avoid; }
-  .sec-header { font-size: 13px; font-weight: bold; background: #f3f0ff; padding: 5px 10px; border-radius: 6px 6px 0 0; border: 1px solid #ddd6fe; border-bottom: none; }
-  .sec-sub { font-weight: normal; color: #7c3aed; font-size: 11px; margin-left: 8px; }
-  table { width: 100%; border-collapse: collapse; border: 1px solid #ddd6fe; border-top: none; }
-  th { background: #faf5ff; text-align: left; padding: 4px 8px; font-size: 10px; color: #6b21a8; border-bottom: 1px solid #e9d5ff; }
-  td { padding: 5px 8px; border-bottom: 1px solid #f5f3ff; }
-  tr:last-child td { border-bottom: none; }
-  td.ct { color: #aaa; font-size: 10px; white-space: nowrap; width: 80px; }
-  td.label8 { color: #888; font-size: 10px; white-space: nowrap; width: 110px; }
-  td.move { font-weight: 600; }
-  td.genre { color: #7c3aed; font-size: 11px; width: 80px; }
-  td.level { color: #666; font-size: 11px; width: 60px; }
-  @media print { body { padding: 10px 14px; } }
-</style></head><body>
-<h1>${title}</h1>
-${artist ? `<p class="artist">${artist}</p>` : ""}
-<p class="meta">BPM ${choreo.bpm} \xB7 \u751F\u6210 ${choreo.time} \xB7 Muvdas</p>
-${rows}
-</body></html>`;
-      const w = window.open("", "_blank");
-      if (!w) return;
-      w.document.write(html);
-      w.document.close();
-      w.focus();
-      setTimeout(() => w.print(), 400);
+      exportChoreoAsPrint(getChoreoHtml());
+    }
+    function downloadChoreoImage() {
+      if (!choreo) return;
+      exportChoreoAsImage(getChoreoHtml(), (songConfig.title || "choreo") + ".png");
     }
     function handleSave() {
       if (!choreo || !saveTitle.trim()) return;
@@ -1120,10 +1233,10 @@ ${rows}
           countsPerPhrase: section.countsPerPhrase,
           movesPerPhrase: section.movesPerPhrase || 1,
           moves: phrases.flat().map((item) => ({
-            moveId: item.move.id,
-            moveName: item.move.name,
-            genre: item.move.genre,
-            level: item.move.level,
+            moveId: item.move ? item.move.id : null,
+            moveName: item.move ? item.move.name : "\uFF08\u672A\u914D\u7F6E\uFF09",
+            genre: item.move ? item.move.genre : "",
+            level: item.move ? item.move.level : "",
             variationName: item.variation ? item.variation.name : null
           }))
         }))
@@ -1140,7 +1253,7 @@ ${rows}
       const info = SECTION_TYPES[sec.type];
       const label = sec.customLabel || info.label;
       return /* @__PURE__ */ React.createElement("div", { key: sec.id, className: "flex items-center gap-1" }, /* @__PURE__ */ React.createElement("span", { className: `text-xs px-2 py-0.5 rounded-lg font-semibold ${info.badge}` }, label), i < sections.length - 1 && /* @__PURE__ */ React.createElement("span", { className: "text-gray-300 text-xs" }, "\u2192"));
-    })) : /* @__PURE__ */ React.createElement("div", { className: "mb-4 bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-700 text-xs" }, "\u26A0\uFE0F \u300C\u697D\u66F2\u69CB\u6210\u300D\u30BF\u30D6\u3067\u69CB\u6210\u3092\u5148\u306B\u8A2D\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3 mb-4" }, /* @__PURE__ */ React.createElement("label", { className: "text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap" }, "\u6700\u5927\u96E3\u6613\u5EA6"), /* @__PURE__ */ React.createElement("select", { className: "border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-0 focus:border-gray-400 bg-white", value: level, onChange: (e) => setLevel(e.target.value) }, /* @__PURE__ */ React.createElement("option", null, "\u3059\u3079\u3066"), LEVELS.map((l) => /* @__PURE__ */ React.createElement("option", { key: l }, l))), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400" }, "BPM\u5BFE\u8C61: ", eligible.length, "\u30E0\u30FC\u30D6")), hasStructure && !hasEligible && /* @__PURE__ */ React.createElement("div", { className: "mb-4 bg-gray-50 border border-gray-300 rounded-xl p-3 text-gray-700 text-xs" }, "\u26A0\uFE0F \u6761\u4EF6\u306B\u5408\u3046\u30E0\u30FC\u30D6\u304C\u3042\u308A\u307E\u305B\u3093\u3002BPM\u3084\u30B8\u30E3\u30F3\u30EB\u3092\u898B\u76F4\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), /* @__PURE__ */ React.createElement("button", { onClick: generate, disabled: !hasStructure || !hasEligible, className: "w-full bg-gray-900 text-white font-bold py-3.5 rounded-xl hover:bg-gray-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-base" }, "\u{1F3B5} \u30B3\u30EC\u30AA\u30B0\u30E9\u30D5\u3092\u751F\u6210")), choreo && /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800" }, "\u751F\u6210\u7D50\u679C"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400" }, "BPM ", choreo.bpm, " \xB7 ", choreo.time), /* @__PURE__ */ React.createElement("button", { onClick: printChoreo, className: "text-xs text-gray-500 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors shadow-sm" }, "\u{1F5A8} \u5370\u5237"))), choreo.result.map(({ section, phrases }) => {
+    })) : /* @__PURE__ */ React.createElement("div", { className: "mb-4 bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-700 text-xs" }, "\u26A0\uFE0F \u300C\u697D\u66F2\u69CB\u6210\u300D\u30BF\u30D6\u3067\u69CB\u6210\u3092\u5148\u306B\u8A2D\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3 mb-4" }, /* @__PURE__ */ React.createElement("label", { className: "text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap" }, "\u6700\u5927\u96E3\u6613\u5EA6"), /* @__PURE__ */ React.createElement("select", { className: "border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-0 focus:border-gray-400 bg-white", value: level, onChange: (e) => setLevel(e.target.value) }, /* @__PURE__ */ React.createElement("option", null, "\u3059\u3079\u3066"), LEVELS.map((l) => /* @__PURE__ */ React.createElement("option", { key: l }, l))), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400" }, "BPM\u5BFE\u8C61: ", eligible.length, "\u30E0\u30FC\u30D6")), hasStructure && !hasEligible && /* @__PURE__ */ React.createElement("div", { className: "mb-4 bg-gray-50 border border-gray-300 rounded-xl p-3 text-gray-700 text-xs" }, "\u26A0\uFE0F \u6761\u4EF6\u306B\u5408\u3046\u30E0\u30FC\u30D6\u304C\u3042\u308A\u307E\u305B\u3093\u3002BPM\u3084\u30B8\u30E3\u30F3\u30EB\u3092\u898B\u76F4\u3057\u3066\u304F\u3060\u3055\u3044\u3002"), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 mb-4" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMode("auto"), className: `flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${mode === "auto" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}` }, "\u{1F3B5} \u81EA\u52D5\u751F\u6210"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMode("manual"), className: `flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${mode === "manual" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}` }, "\u270B \u624B\u52D5\u914D\u7F6E")), mode === "auto" ? /* @__PURE__ */ React.createElement("button", { onClick: generate, disabled: !hasStructure || !hasEligible, className: "w-full bg-gray-900 text-white font-bold py-3.5 rounded-xl hover:bg-gray-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-base" }, "\u{1F3B5} \u30B3\u30EC\u30AA\u30B0\u30E9\u30D5\u3092\u751F\u6210") : /* @__PURE__ */ React.createElement("button", { onClick: generateEmptyChoreo, disabled: !hasStructure, className: "w-full bg-gray-900 text-white font-bold py-3.5 rounded-xl hover:bg-gray-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-base" }, "\u270B \u624B\u52D5\u914D\u7F6E\u3092\u958B\u59CB")), choreo && /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800" }, "\u751F\u6210\u7D50\u679C"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400" }, "BPM ", choreo.bpm, " \xB7 ", choreo.time), /* @__PURE__ */ React.createElement("button", { onClick: downloadChoreoImage, className: "text-xs text-gray-500 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors shadow-sm" }, "\u{1F4F7} \u753B\u50CF"), /* @__PURE__ */ React.createElement("button", { onClick: printChoreo, className: "text-xs text-gray-500 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors shadow-sm" }, "\u{1F5A8} PDF"))), choreo.result.map(({ section, phrases }) => {
       const info = SECTION_TYPES[section.type];
       const label = section.customLabel || info.label;
       return /* @__PURE__ */ React.createElement("div", { key: section.id, className: `rounded-2xl border overflow-hidden ${info.border}` }, /* @__PURE__ */ React.createElement("div", { className: `px-4 py-2.5 flex items-center justify-between ${info.bg}` }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("span", { className: `text-sm font-bold px-2.5 py-1 rounded-lg ${info.badge}` }, label), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-500" }, section.phrases, "\u30A8\u30A4\u30C8 \xD7 ", section.countsPerPhrase, "ct = ", section.phrases * section.countsPerPhrase, "ct")), /* @__PURE__ */ React.createElement("button", { onClick: () => regenerateSection(section.id), className: "text-xs text-gray-400 hover:text-gray-700 bg-white/80 border border-gray-200 px-2.5 py-1 rounded-lg" }, "\u{1F504} \u518D\u751F\u6210")), /* @__PURE__ */ React.createElement("div", { className: "bg-white divide-y divide-gray-50" }, phrases.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 text-xs text-gray-400 italic" }, "\u30E0\u30FC\u30D6\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093\u3067\u3057\u305F") : phrases.map((phraseItems, idx) => {
@@ -1149,8 +1262,22 @@ ${rows}
         const phraseStart = idx * section.countsPerPhrase + 1;
         return /* @__PURE__ */ React.createElement("div", { key: idx }, mpp > 1 && /* @__PURE__ */ React.createElement("div", { className: "px-4 py-1.5 bg-gray-50/90 flex items-center gap-2 border-b border-gray-100" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-600" }, idx + 1, "\u30A8\u30A4\u30C8\u76EE"), /* @__PURE__ */ React.createElement("span", { className: "text-[10px] text-gray-400 font-mono" }, phraseStart, "\u2013", phraseStart + section.countsPerPhrase - 1, "ct \xB7 ", mpp, "\u30E0\u30FC\u30D6")), phraseItems.map((item, moveIdx) => {
           const isEditing = editingPhrase?.sectionId === section.id && editingPhrase?.phraseIdx === idx && editingPhrase?.moveIdx === moveIdx;
+          const isManualPicking = manualSlotPicking?.sectionId === section.id && manualSlotPicking?.phraseIdx === idx && manualSlotPicking?.moveIdx === moveIdx;
           const moveStart = phraseStart + moveIdx * countsPerMove;
-          return /* @__PURE__ */ React.createElement("div", { key: moveIdx }, /* @__PURE__ */ React.createElement("div", { className: `flex items-center gap-3 py-2.5 ${mpp > 1 ? "px-6" : "px-4"}` }, /* @__PURE__ */ React.createElement("div", { className: "shrink-0 w-14 text-center" }, mpp > 1 ? /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-500" }, moveIdx + 1, "\u756A\u76EE") : /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-600" }, idx + 1, "\u30A8\u30A4\u30C8\u76EE"), /* @__PURE__ */ React.createElement("div", { className: "text-[10px] text-gray-300 font-mono leading-tight mt-0.5" }, mpp > 1 ? `${moveStart}\u2013${moveStart + countsPerMove - 1}ct` : `${phraseStart}\u2013${phraseStart + section.countsPerPhrase - 1}ct`)), /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("span", { className: "font-semibold text-sm text-gray-800" }, item.move.name), item.variation && /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-900 ml-1.5" }, "(", item.variation.name, ")")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" }, /* @__PURE__ */ React.createElement(Badge, { text: item.move.genre, color: "purple" }), /* @__PURE__ */ React.createElement(Badge, { text: item.move.level, color: levelColor(item.move.level) }), /* @__PURE__ */ React.createElement(
+          const isEmpty = !item.move;
+          return /* @__PURE__ */ React.createElement("div", { key: moveIdx }, /* @__PURE__ */ React.createElement("div", { className: `flex items-center gap-3 py-2.5 ${mpp > 1 ? "px-6" : "px-4"}` }, /* @__PURE__ */ React.createElement("div", { className: "shrink-0 w-14 text-center" }, mpp > 1 ? /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-500" }, moveIdx + 1, "\u756A\u76EE") : /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-600" }, idx + 1, "\u30A8\u30A4\u30C8\u76EE"), /* @__PURE__ */ React.createElement("div", { className: "text-[10px] text-gray-300 font-mono leading-tight mt-0.5" }, mpp > 1 ? `${moveStart}\u2013${moveStart + countsPerMove - 1}ct` : `${phraseStart}\u2013${phraseStart + section.countsPerPhrase - 1}ct`)), isEmpty ? /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => {
+                setManualSlotPicking({ sectionId: section.id, phraseIdx: idx, moveIdx });
+                setManualSearch("");
+                setManualPickedMove(null);
+                setManualPickedVar(null);
+              },
+              className: "flex-1 min-w-0 border-2 border-dashed border-gray-300 rounded-lg py-2 text-center text-xs text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-all"
+            },
+            "\uFF0B \u30BF\u30C3\u30D7\u3057\u3066\u30E0\u30FC\u30D6\u3092\u914D\u7F6E"
+          ) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("span", { className: "font-semibold text-sm text-gray-800" }, item.move.name), item.variation && /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-900 ml-1.5" }, "(", item.variation.name, ")")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" }, /* @__PURE__ */ React.createElement(Badge, { text: item.move.genre, color: "purple" }), /* @__PURE__ */ React.createElement(Badge, { text: item.move.level, color: levelColor(item.move.level) }), mode === "manual" && /* @__PURE__ */ React.createElement("button", { onClick: () => clearManualSlot(section.id, idx, moveIdx), title: "\u30AF\u30EA\u30A2", className: "w-7 h-7 flex items-center justify-center rounded-lg text-xs bg-gray-100 text-gray-400 hover:text-red-500 transition-all" }, "\u2715"), /* @__PURE__ */ React.createElement(
             "button",
             {
               onClick: () => randomSwapPhrase(section.id, idx, moveIdx, item.move.id),
@@ -1175,7 +1302,7 @@ ${rows}
               className: `w-7 h-7 flex items-center justify-center rounded-lg text-xs transition-all ${isEditing ? "bg-gray-200 text-gray-800 shadow-sm" : "bg-gray-100 hover:bg-gray-100 text-gray-400 hover:text-gray-900"}`
             },
             "\u{1F500}"
-          ))), isEditing && /* @__PURE__ */ React.createElement("div", { className: "mx-4 mb-3 border border-gray-300 rounded-xl bg-gray-50 p-3 space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-800" }, mpp > 1 ? `${idx + 1}\u30A8\u30A4\u30C8\u76EE\u30FB${moveIdx + 1}\u756A\u76EE\u306E\u30E0\u30FC\u30D6\u3092\u5909\u66F4` : `${idx + 1}\u30A8\u30A4\u30C8\u76EE\u306E\u30E0\u30FC\u30D6\u3092\u5909\u66F4`), /* @__PURE__ */ React.createElement("button", { onClick: closeEditPicker, className: "text-xs text-gray-400 hover:text-gray-600" }, "\u2715 \u9589\u3058\u308B")), /* @__PURE__ */ React.createElement(
+          )))), isEditing && /* @__PURE__ */ React.createElement("div", { className: "mx-4 mb-3 border border-gray-300 rounded-xl bg-gray-50 p-3 space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-800" }, mpp > 1 ? `${idx + 1}\u30A8\u30A4\u30C8\u76EE\u30FB${moveIdx + 1}\u756A\u76EE\u306E\u30E0\u30FC\u30D6\u3092\u5909\u66F4` : `${idx + 1}\u30A8\u30A4\u30C8\u76EE\u306E\u30E0\u30FC\u30D6\u3092\u5909\u66F4`), /* @__PURE__ */ React.createElement("button", { onClick: closeEditPicker, className: "text-xs text-gray-400 hover:text-gray-600" }, "\u2715 \u9589\u3058\u308B")), /* @__PURE__ */ React.createElement(
             "input",
             {
               className: "w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-gray-400 bg-white",
@@ -1210,10 +1337,50 @@ ${rows}
             editPickedMove.name,
             editPickedVariation ? ` (${editPickedVariation.name})` : "",
             " \u306B\u5909\u66F4\u3059\u308B"
+          )), isManualPicking && /* @__PURE__ */ React.createElement("div", { className: "mx-4 mb-3 border border-gray-300 rounded-xl bg-gray-50 p-3 space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-800" }, mpp > 1 ? `${idx + 1}\u30A8\u30A4\u30C8\u76EE\u30FB${moveIdx + 1}\u756A\u76EE\u306B\u30E0\u30FC\u30D6\u3092\u914D\u7F6E` : `${idx + 1}\u30A8\u30A4\u30C8\u76EE\u306B\u30E0\u30FC\u30D6\u3092\u914D\u7F6E`), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+            setManualSlotPicking(null);
+            setManualSearch("");
+            setManualPickedMove(null);
+            setManualPickedVar(null);
+          }, className: "text-xs text-gray-400 hover:text-gray-600" }, "\u2715 \u9589\u3058\u308B")), /* @__PURE__ */ React.createElement(
+            "input",
+            {
+              className: "w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-gray-400 bg-white",
+              placeholder: "\u30E0\u30FC\u30D6\u540D\u30FB\u30B8\u30E3\u30F3\u30EB\u30FB\u30BF\u30B0\u3067\u691C\u7D22...",
+              value: manualSearch,
+              onChange: (e) => {
+                setManualSearch(e.target.value);
+                setManualPickedMove(null);
+                setManualPickedVar(null);
+              },
+              autoFocus: true
+            }
+          ), /* @__PURE__ */ React.createElement("div", { className: "max-h-44 overflow-y-auto space-y-1 pr-1" }, manualPickerMoves.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 italic px-1 py-2" }, "\u8A72\u5F53\u3059\u308B\u30E0\u30FC\u30D6\u304C\u3042\u308A\u307E\u305B\u3093") : manualPickerMoves.slice(0, 50).map((m) => /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              key: m.id,
+              onClick: () => {
+                setManualPickedMove(m);
+                setManualPickedVar(null);
+              },
+              className: `w-full text-left text-xs px-2.5 py-2 rounded-lg border transition-all ${manualPickedMove?.id === m.id ? "bg-gray-100 border-gray-400 text-gray-900 font-semibold" : "bg-white border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50"}`
+            },
+            /* @__PURE__ */ React.createElement("span", { className: "font-semibold" }, m.name),
+            /* @__PURE__ */ React.createElement("span", { className: "text-gray-400 ml-1.5" }, "\xB7 ", m.genre, " \xB7 ", m.level)
+          ))), manualPickedMove && manualPickedMove.variations.length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mb-1.5" }, "\u30D0\u30EA\u30A8\u30FC\u30B7\u30E7\u30F3\uFF08\u4EFB\u610F\uFF09\uFF1A"), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-1" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setManualPickedVar(null), className: `text-xs px-2.5 py-1 rounded-lg border transition-all ${manualPickedVar === null ? "bg-gray-900 text-white border-gray-600" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}` }, "\u306A\u3057"), manualPickedMove.variations.map((v) => /* @__PURE__ */ React.createElement("button", { key: v.name, onClick: () => setManualPickedVar(v), className: `text-xs px-2.5 py-1 rounded-lg border transition-all ${manualPickedVar?.name === v.name ? "bg-gray-900 text-white border-gray-600" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}` }, v.name)))), manualPickedMove && /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => setManualMove(section.id, idx, moveIdx, manualPickedMove, manualPickedVar),
+              className: "w-full bg-gray-900 text-white text-xs font-bold py-2 rounded-lg hover:bg-gray-700 transition-all"
+            },
+            "\u2713 ",
+            manualPickedMove.name,
+            manualPickedVar ? ` (${manualPickedVar.name})` : "",
+            " \u3092\u914D\u7F6E\u3059\u308B"
           )));
         }));
       })));
-    }), /* @__PURE__ */ React.createElement("button", { onClick: generate, className: "w-full border-2 border-dashed border-gray-300 text-gray-900 font-semibold py-3 rounded-xl hover:bg-gray-50 hover:border-gray-400 text-sm transition-all" }, "\u{1F504} \u3059\u3079\u3066\u518D\u751F\u6210"), savedFlash ? /* @__PURE__ */ React.createElement("div", { className: "bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-gray-700 text-sm font-semibold text-center" }, "\u2705 \u4FDD\u5B58\u3057\u307E\u3057\u305F\uFF01\u300C\u4FDD\u5B58\u6E08\u307F\u30B3\u30EC\u30AA\u300D\u30BF\u30D6\u3067\u78BA\u8A8D\u3067\u304D\u307E\u3059") : showSaveForm ? /* @__PURE__ */ React.createElement("div", { className: "bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs font-semibold text-gray-700 mb-1" }, "\u{1F4BE} \u3053\u306E\u30B3\u30EC\u30AA\u3092\u4FDD\u5B58\u3059\u308B"), /* @__PURE__ */ React.createElement(
+    }), mode === "auto" && /* @__PURE__ */ React.createElement("button", { onClick: generate, className: "w-full border-2 border-dashed border-gray-300 text-gray-900 font-semibold py-3 rounded-xl hover:bg-gray-50 hover:border-gray-400 text-sm transition-all" }, "\u{1F504} \u3059\u3079\u3066\u518D\u751F\u6210"), savedFlash ? /* @__PURE__ */ React.createElement("div", { className: "bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-gray-700 text-sm font-semibold text-center" }, "\u2705 \u4FDD\u5B58\u3057\u307E\u3057\u305F\uFF01\u300C\u4FDD\u5B58\u6E08\u307F\u30B3\u30EC\u30AA\u300D\u30BF\u30D6\u3067\u78BA\u8A8D\u3067\u304D\u307E\u3059") : showSaveForm ? /* @__PURE__ */ React.createElement("div", { className: "bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs font-semibold text-gray-700 mb-1" }, "\u{1F4BE} \u3053\u306E\u30B3\u30EC\u30AA\u3092\u4FDD\u5B58\u3059\u308B"), /* @__PURE__ */ React.createElement(
       "input",
       {
         className: "w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-400 bg-white",
@@ -1238,12 +1405,49 @@ ${rows}
     });
     return /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 hover:border-gray-300 overflow-hidden cursor-pointer transition-all duration-200 group", onClick: () => onClick(choreo) }, /* @__PURE__ */ React.createElement("div", { className: `px-4 py-2 flex items-center justify-between ${statusInfo.badge}` }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold flex items-center gap-1.5" }, statusInfo.emoji, " ", statusInfo.label), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-1" }, CHOREO_STATUS_KEYS.map((k, i) => /* @__PURE__ */ React.createElement("div", { key: k, className: `rounded-full transition-all ${i < currentStep ? `w-2.5 h-2.5 ${CHOREO_STATUS[k].bar}` : "w-1.5 h-1.5 bg-black/10"}` })))), /* @__PURE__ */ React.createElement("div", { className: "p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between mb-1.5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 text-sm group-hover:text-gray-800 transition-colors leading-snug pr-2" }, choreo.title), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 shrink-0" }, choreo.savedAt)), (choreo.songTitle || choreo.songArtist) && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mb-2 truncate" }, "\u{1F3B5} ", choreo.songTitle, choreo.songTitle && choreo.songArtist && " / ", choreo.songArtist), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-1 mb-3" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium" }, choreo.bpm, " BPM"), choreo.genre !== "\u3059\u3079\u3066" && /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium" }, choreo.genre), /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium" }, choreo.sections.length, "\u30BB\u30AF\u30B7\u30E7\u30F3")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-1" }, sectionFlow.map((s, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "flex items-center gap-0.5" }, /* @__PURE__ */ React.createElement("span", { className: `text-xs px-1.5 py-0.5 rounded font-semibold ${s.badge}` }, s.label), i < sectionFlow.length - 1 && /* @__PURE__ */ React.createElement("span", { className: "text-gray-300 text-xs" }, "\u203A")))), choreo.memo && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 mt-2 line-clamp-1 italic" }, "\u{1F4DD} ", choreo.memo)));
   }
-  function SavedChoreoDetail({ choreo, onClose, onUpdate, onDelete }) {
+  function SavedChoreoDetail({ choreo, onClose, onUpdate, onDelete, allMoves }) {
     const [memo, setMemo] = useState(choreo.memo || "");
     const [editingMemo, setEditingMemo] = useState(false);
     const [draftMemo, setDraftMemo] = useState(choreo.memo || "");
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [currentStatus, setCurrentStatus] = useState(choreo.status || "design");
+    const [editMode, setEditMode] = useState(false);
+    const [editingSec, setEditingSec] = useState(null);
+    const [replaceSearch, setReplaceSearch] = useState("");
+    const [replacePicked, setReplacePicked] = useState(null);
+    const replaceResults = useMemo(() => {
+      if (!allMoves || !replaceSearch.trim()) return (allMoves || []).slice(0, 30);
+      const q = replaceSearch.trim().toLowerCase();
+      return (allMoves || []).filter((m) => !m.excluded && (m.name.toLowerCase().includes(q) || m.genre.toLowerCase().includes(q))).slice(0, 30);
+    }, [allMoves, replaceSearch]);
+    function replaceMove(secIdx, moveIdx, newMove) {
+      const updated = { ...choreo, sections: choreo.sections.map((sec, si) => {
+        if (si !== secIdx) return sec;
+        return { ...sec, moves: sec.moves.map((m, mi) => mi === moveIdx ? { ...m, moveId: newMove.id, moveName: newMove.name, genre: newMove.genre, level: newMove.level, variationName: null } : m) };
+      }) };
+      onUpdate(updated);
+      setEditingSec(null);
+      setReplaceSearch("");
+      setReplacePicked(null);
+    }
+    function swapMoveOrder(secIdx, moveIdx, dir) {
+      const updated = { ...choreo, sections: choreo.sections.map((sec, si) => {
+        if (si !== secIdx) return sec;
+        const arr = [...sec.moves];
+        const newIdx = moveIdx + dir;
+        if (newIdx < 0 || newIdx >= arr.length) return sec;
+        [arr[moveIdx], arr[newIdx]] = [arr[newIdx], arr[moveIdx]];
+        return { ...sec, moves: arr };
+      }) };
+      onUpdate(updated);
+    }
+    function removeMove(secIdx, moveIdx) {
+      const updated = { ...choreo, sections: choreo.sections.map((sec, si) => {
+        if (si !== secIdx) return sec;
+        return { ...sec, moves: sec.moves.filter((_, mi) => mi !== moveIdx) };
+      }) };
+      onUpdate(updated);
+    }
     const statusInfo = CHOREO_STATUS[currentStatus] || CHOREO_STATUS.design;
     function saveMemo() {
       const updated = { ...choreo, memo: draftMemo, status: currentStatus };
@@ -1281,7 +1485,10 @@ ${rows}
         placeholder: "\u3053\u306E\u30B3\u30EC\u30AA\u306B\u3064\u3044\u3066\u306E\u30E1\u30E2\u3001\u6539\u5584\u70B9\u3001\u611F\u60F3\u306A\u3069...",
         autoFocus: true
       }
-    ), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, /* @__PURE__ */ React.createElement("button", { onClick: saveMemo, className: "flex-1 bg-gray-500 text-white text-xs py-1.5 rounded-lg hover:bg-gray-600 font-semibold" }, "\u4FDD\u5B58"), /* @__PURE__ */ React.createElement("button", { onClick: () => setEditingMemo(false), className: "flex-1 bg-white text-gray-600 text-xs py-1.5 rounded-lg border border-gray-200" }, "\u30AD\u30E3\u30F3\u30BB\u30EB"))) : memo ? /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-700 whitespace-pre-wrap leading-relaxed" }, memo) : /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 italic" }, "\u30E1\u30E2\u306A\u3057")), choreo.sections.map((sec, si) => {
+    ), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, /* @__PURE__ */ React.createElement("button", { onClick: saveMemo, className: "flex-1 bg-gray-500 text-white text-xs py-1.5 rounded-lg hover:bg-gray-600 font-semibold" }, "\u4FDD\u5B58"), /* @__PURE__ */ React.createElement("button", { onClick: () => setEditingMemo(false), className: "flex-1 bg-white text-gray-600 text-xs py-1.5 rounded-lg border border-gray-200" }, "\u30AD\u30E3\u30F3\u30BB\u30EB"))) : memo ? /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-700 whitespace-pre-wrap leading-relaxed" }, memo) : /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 italic" }, "\u30E1\u30E2\u306A\u3057")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("h4", { className: "text-xs font-semibold text-gray-400 uppercase tracking-wider" }, "\u30BB\u30AF\u30B7\u30E7\u30F3\u69CB\u6210"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+      setEditMode(!editMode);
+      setEditingSec(null);
+    }, className: `text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${editMode ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}` }, editMode ? "\u2713 \u7DE8\u96C6\u5B8C\u4E86" : "\u270F\uFE0F \u7DE8\u96C6")), choreo.sections.map((sec, si) => {
       const info = SECTION_TYPES[sec.sectionType] || SECTION_TYPES.custom;
       const label = sec.sectionLabel || info.label;
       return /* @__PURE__ */ React.createElement("div", { key: si, className: `rounded-2xl border overflow-hidden ${info.border}` }, /* @__PURE__ */ React.createElement("div", { className: `px-4 py-2.5 flex items-center gap-3 ${info.bg}` }, /* @__PURE__ */ React.createElement("span", { className: `text-sm font-bold px-2.5 py-1 rounded-lg ${info.badge}` }, label), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-500" }, sec.phrases, "\u30A8\u30A4\u30C8 \xD7 ", sec.countsPerPhrase, "ct = ", sec.phrases * sec.countsPerPhrase, "ct")), /* @__PURE__ */ React.createElement("div", { className: "bg-white divide-y divide-gray-50" }, sec.moves.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 text-xs text-gray-400 italic" }, "\u30E0\u30FC\u30D6\u306A\u3057") : (() => {
@@ -1292,15 +1499,48 @@ ${rows}
           const moveIdxInPhrase = idx % mpp;
           const phraseStart = phraseIdx * sec.countsPerPhrase + 1;
           const moveStart = phraseStart + moveIdxInPhrase * countsPerMove;
-          return /* @__PURE__ */ React.createElement("div", { key: idx }, mpp > 1 && moveIdxInPhrase === 0 && /* @__PURE__ */ React.createElement("div", { className: "px-4 py-1 bg-gray-50/80 flex items-center gap-2 border-b border-gray-100" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 font-mono" }, phraseStart, "\u2013", phraseStart + sec.countsPerPhrase - 1, "ct"), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-300" }, phraseIdx + 1, "\u30A8\u30A4\u30C8\u76EE")), /* @__PURE__ */ React.createElement("div", { className: `flex items-center gap-3 py-2.5 ${mpp > 1 ? "px-6" : "px-4"}` }, /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-300 font-mono w-16 shrink-0" }, mpp > 1 ? `${moveStart}\u2013${moveStart + countsPerMove - 1}ct` : `${phraseStart}\u2013${phraseStart + sec.countsPerPhrase - 1}ct`), /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("span", { className: "font-semibold text-sm text-gray-800" }, item.moveName), item.variationName && /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-900 ml-1.5" }, "(", item.variationName, ")")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" }, item.genre && /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium" }, item.genre), item.level && /* @__PURE__ */ React.createElement("span", { className: `text-xs px-2 py-0.5 rounded-full font-medium ${item.level === "\u521D\u7D1A" ? "bg-gray-100 text-gray-700" : item.level === "\u4E2D\u7D1A" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}` }, item.level))));
+          const isEditingThis = editingSec?.secIdx === si && editingSec?.moveIdx === idx;
+          return /* @__PURE__ */ React.createElement("div", { key: idx }, mpp > 1 && moveIdxInPhrase === 0 && /* @__PURE__ */ React.createElement("div", { className: "px-4 py-1 bg-gray-50/80 flex items-center gap-2 border-b border-gray-100" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 font-mono" }, phraseStart, "\u2013", phraseStart + sec.countsPerPhrase - 1, "ct"), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-300" }, phraseIdx + 1, "\u30A8\u30A4\u30C8\u76EE")), /* @__PURE__ */ React.createElement("div", { className: `flex items-center gap-2 py-2.5 ${mpp > 1 ? "px-5" : "px-4"}` }, editMode && /* @__PURE__ */ React.createElement("div", { className: "flex flex-col gap-0.5 shrink-0" }, /* @__PURE__ */ React.createElement("button", { onClick: () => swapMoveOrder(si, idx, -1), disabled: idx === 0, className: "w-5 h-5 flex items-center justify-center rounded text-[10px] bg-gray-100 text-gray-400 hover:text-gray-700 disabled:opacity-30" }, "\u25B2"), /* @__PURE__ */ React.createElement("button", { onClick: () => swapMoveOrder(si, idx, 1), disabled: idx === sec.moves.length - 1, className: "w-5 h-5 flex items-center justify-center rounded text-[10px] bg-gray-100 text-gray-400 hover:text-gray-700 disabled:opacity-30" }, "\u25BC")), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-300 font-mono w-14 shrink-0" }, mpp > 1 ? `${moveStart}\u2013${moveStart + countsPerMove - 1}ct` : `${phraseStart}\u2013${phraseStart + sec.countsPerPhrase - 1}ct`), /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("span", { className: "font-semibold text-sm text-gray-800" }, item.moveName), item.variationName && /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-900 ml-1.5" }, "(", item.variationName, ")")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-1 shrink-0" }, !editMode && item.genre && /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium" }, item.genre), !editMode && item.level && /* @__PURE__ */ React.createElement("span", { className: `text-xs px-2 py-0.5 rounded-full font-medium ${item.level === "\u521D\u7D1A" ? "bg-gray-100 text-gray-700" : item.level === "\u4E2D\u7D1A" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}` }, item.level), editMode && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { onClick: () => {
+            if (isEditingThis) {
+              setEditingSec(null);
+              setReplaceSearch("");
+              setReplacePicked(null);
+            } else {
+              setEditingSec({ secIdx: si, moveIdx: idx });
+              setReplaceSearch("");
+              setReplacePicked(null);
+            }
+          }, title: "\u5165\u308C\u66FF\u3048", className: `w-7 h-7 flex items-center justify-center rounded-lg text-xs transition-all ${isEditingThis ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-400 hover:text-gray-700"}` }, "\u{1F500}"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+            if (window.confirm("\u3053\u306E\u30E0\u30FC\u30D6\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F")) removeMove(si, idx);
+          }, title: "\u524A\u9664", className: "w-7 h-7 flex items-center justify-center rounded-lg text-xs bg-gray-100 text-gray-400 hover:text-red-500" }, "\u2715")))), isEditingThis && /* @__PURE__ */ React.createElement("div", { className: "mx-4 mb-3 border border-gray-300 rounded-xl bg-gray-50 p-3 space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-800" }, "\u300C", item.moveName, "\u300D\u3092\u5165\u308C\u66FF\u3048"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+            setEditingSec(null);
+            setReplaceSearch("");
+          }, className: "text-xs text-gray-400 hover:text-gray-600" }, "\u2715")), /* @__PURE__ */ React.createElement("input", { className: "w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-gray-400 bg-white", placeholder: "\u30E0\u30FC\u30D6\u540D\u30FB\u30B8\u30E3\u30F3\u30EB\u3067\u691C\u7D22...", value: replaceSearch, onChange: (e) => {
+            setReplaceSearch(e.target.value);
+            setReplacePicked(null);
+          }, autoFocus: true }), /* @__PURE__ */ React.createElement("div", { className: "max-h-40 overflow-y-auto space-y-1 pr-1" }, replaceResults.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 italic px-1 py-2" }, "\u8A72\u5F53\u306A\u3057") : replaceResults.map((m) => /* @__PURE__ */ React.createElement("button", { key: m.id, onClick: () => setReplacePicked(m), className: `w-full text-left text-xs px-2.5 py-2 rounded-lg border transition-all ${replacePicked?.id === m.id ? "bg-gray-100 border-gray-400 text-gray-900 font-semibold" : "bg-white border-gray-200 text-gray-700 hover:border-gray-400"}` }, /* @__PURE__ */ React.createElement("span", { className: "font-semibold" }, m.name), /* @__PURE__ */ React.createElement("span", { className: "text-gray-400 ml-1.5" }, "\xB7 ", m.genre, " \xB7 ", m.level)))), replacePicked && /* @__PURE__ */ React.createElement("button", { onClick: () => replaceMove(si, idx, replacePicked), className: "w-full bg-gray-900 text-white text-xs font-bold py-2 rounded-lg hover:bg-gray-700" }, "\u2713 ", replacePicked.name, " \u306B\u5165\u308C\u66FF\u3048\u308B")));
         });
       })()));
-    })), /* @__PURE__ */ React.createElement("div", { className: "px-6 py-4 border-t border-gray-100 flex gap-3" }, /* @__PURE__ */ React.createElement("button", { onClick: onClose, className: "flex-1 bg-gray-50 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors" }, "\u9589\u3058\u308B"), confirmDelete ? /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 flex-1" }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
+    })), /* @__PURE__ */ React.createElement("div", { className: "px-6 py-4 border-t border-gray-100 space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
+      const sData = choreo.sections.map((sec) => {
+        const info = SECTION_TYPES[sec.sectionType] || SECTION_TYPES.custom;
+        return { label: sec.sectionLabel || info.label, phrases: sec.phrases, countsPerPhrase: sec.countsPerPhrase, movesPerPhrase: sec.movesPerPhrase || 1, moves: sec.moves };
+      });
+      const html = buildChoreoHtml(choreo.title || choreo.songTitle || "\uFF08\u66F2\u540D\u672A\u8A2D\u5B9A\uFF09", choreo.songArtist || "", choreo.bpm, null, sData);
+      exportChoreoAsPrint(html);
+    }, className: "flex-1 bg-gray-50 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors text-sm" }, "\u{1F5A8} PDF"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+      const sData = choreo.sections.map((sec) => {
+        const info = SECTION_TYPES[sec.sectionType] || SECTION_TYPES.custom;
+        return { label: sec.sectionLabel || info.label, phrases: sec.phrases, countsPerPhrase: sec.countsPerPhrase, movesPerPhrase: sec.movesPerPhrase || 1, moves: sec.moves };
+      });
+      const html = buildChoreoHtml(choreo.title || choreo.songTitle || "\uFF08\u66F2\u540D\u672A\u8A2D\u5B9A\uFF09", choreo.songArtist || "", choreo.bpm, null, sData);
+      exportChoreoAsImage(html, (choreo.title || "choreo") + ".png");
+    }, className: "flex-1 bg-gray-50 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors text-sm" }, "\u{1F4F7} \u753B\u50CF")), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, /* @__PURE__ */ React.createElement("button", { onClick: onClose, className: "flex-1 bg-gray-50 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors" }, "\u9589\u3058\u308B"), confirmDelete ? /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 flex-1" }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
       onDelete(choreo.id);
       onClose();
-    }, className: "flex-1 bg-gray-600 text-white font-bold py-2.5 rounded-xl hover:bg-red-700 text-sm" }, "\u672C\u5F53\u306B\u524A\u9664\u3059\u308B"), /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmDelete(false), className: "flex-1 bg-gray-50 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors text-sm" }, "\u30AD\u30E3\u30F3\u30BB\u30EB")) : /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmDelete(true), className: "px-5 py-2.5 bg-gray-50 text-gray-500 font-semibold rounded-xl hover:bg-gray-100 text-sm" }, "\u{1F5D1} \u524A\u9664"))));
+    }, className: "flex-1 bg-gray-600 text-white font-bold py-2.5 rounded-xl hover:bg-red-700 text-sm" }, "\u672C\u5F53\u306B\u524A\u9664\u3059\u308B"), /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmDelete(false), className: "flex-1 bg-gray-50 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-100 border border-gray-200 transition-colors text-sm" }, "\u30AD\u30E3\u30F3\u30BB\u30EB")) : /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmDelete(true), className: "px-5 py-2.5 bg-gray-50 text-gray-500 font-semibold rounded-xl hover:bg-gray-100 text-sm" }, "\u{1F5D1} \u524A\u9664")))));
   }
-  function SavedChoreoTab({ savedChoreos, onUpdate, onDelete }) {
+  function SavedChoreoTab({ savedChoreos, onUpdate, onDelete, allMoves }) {
     const [selectedChoreo, setSelectedChoreo] = useState(null);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -1378,7 +1618,8 @@ ${rows}
         onDelete: (id) => {
           onDelete(id);
           setSelectedChoreo(null);
-        }
+        },
+        allMoves
       }
     ));
   }
@@ -1573,6 +1814,7 @@ ${rows}
     } }));
   }
   function PracticeLogTab({ practiceLog, onDelete, onClear }) {
+    const [subTab, setSubTab] = useState("stats");
     const grouped = useMemo(() => {
       const map = /* @__PURE__ */ new Map();
       practiceLog.forEach((e) => {
@@ -1581,17 +1823,10 @@ ${rows}
       });
       return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
     }, [practiceLog]);
-    const genreStats = useMemo(() => {
-      const cutoff = /* @__PURE__ */ new Date();
-      cutoff.setDate(cutoff.getDate() - 28);
-      const cutoffStr = cutoff.toISOString().slice(0, 10);
-      const recent = practiceLog.filter((e) => e.date >= cutoffStr);
-      const map = /* @__PURE__ */ new Map();
-      recent.forEach((e) => {
-        map.set(e.genre, (map.get(e.genre) || 0) + 1);
-      });
-      const total = [...map.values()].reduce((s, v) => s + v, 0) || 1;
-      return [...map.entries()].sort((a, b) => b[1] - a[1]).map(([genre, count]) => ({ genre, count, pct: Math.round(count / total * 100) }));
+    const practiceDates = useMemo(() => {
+      const s = /* @__PURE__ */ new Set();
+      practiceLog.forEach((e) => s.add(e.date));
+      return s;
     }, [practiceLog]);
     const weekDayLabels = ["\u6708", "\u706B", "\u6C34", "\u6728", "\u91D1", "\u571F", "\u65E5"];
     const weekStats = useMemo(() => {
@@ -1605,15 +1840,112 @@ ${rows}
         return { label, dateStr, count, isToday: dateStr === todayStr() };
       });
     }, [practiceLog]);
-    const GENRE_COLORS = ["bg-gray-500", "bg-gray-500", "bg-gray-600", "bg-gray-500", "bg-gray-400", "bg-gray-500", "bg-gray-500", "bg-gray-400"];
+    const streak = useMemo(() => {
+      if (practiceDates.size === 0) return { current: 0, best: 0 };
+      const sortedDates = [...practiceDates].sort();
+      let currentStreak = 0;
+      let bestStreak = 0;
+      let tempStreak = 1;
+      const today = todayStr();
+      const yesterday = /* @__PURE__ */ new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().slice(0, 10);
+      const hasToday = practiceDates.has(today);
+      const hasYesterday = practiceDates.has(yesterdayStr);
+      for (let i = 1; i < sortedDates.length; i++) {
+        const prev = new Date(sortedDates[i - 1]);
+        const curr = new Date(sortedDates[i]);
+        const diff = (curr - prev) / (1e3 * 60 * 60 * 24);
+        if (diff === 1) tempStreak++;
+        else tempStreak = 1;
+        if (tempStreak > bestStreak) bestStreak = tempStreak;
+      }
+      if (sortedDates.length === 1) bestStreak = 1;
+      if (tempStreak > bestStreak) bestStreak = tempStreak;
+      const startDate = hasToday ? today : hasYesterday ? yesterdayStr : null;
+      if (startDate) {
+        currentStreak = 1;
+        let d = new Date(startDate);
+        while (true) {
+          d.setDate(d.getDate() - 1);
+          if (practiceDates.has(d.toISOString().slice(0, 10))) currentStreak++;
+          else break;
+        }
+      }
+      return { current: currentStreak, best: bestStreak };
+    }, [practiceDates]);
+    const genreStats = useMemo(() => {
+      const cutoff = /* @__PURE__ */ new Date();
+      cutoff.setDate(cutoff.getDate() - 28);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      const recent = practiceLog.filter((e) => e.date >= cutoffStr);
+      const map = /* @__PURE__ */ new Map();
+      recent.forEach((e) => {
+        map.set(e.genre, (map.get(e.genre) || 0) + 1);
+      });
+      const total = [...map.values()].reduce((s, v) => s + v, 0) || 1;
+      return [...map.entries()].sort((a, b) => b[1] - a[1]).map(([genre, count]) => ({ genre, count, pct: Math.round(count / total * 100) }));
+    }, [practiceLog]);
+    const levelStats = useMemo(() => {
+      const cutoff = /* @__PURE__ */ new Date();
+      cutoff.setDate(cutoff.getDate() - 28);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      const recent = practiceLog.filter((e) => e.date >= cutoffStr);
+      const map = /* @__PURE__ */ new Map();
+      recent.forEach((e) => {
+        const lv = e.level || "\u4E0D\u660E";
+        map.set(lv, (map.get(lv) || 0) + 1);
+      });
+      const total = [...map.values()].reduce((s, v) => s + v, 0) || 1;
+      return [...map.entries()].sort((a, b) => b[1] - a[1]).map(([level, count]) => ({ level, count, pct: Math.round(count / total * 100) }));
+    }, [practiceLog]);
+    const topMoves = useMemo(() => {
+      const map = /* @__PURE__ */ new Map();
+      practiceLog.forEach((e) => {
+        const key = e.moveName || e.moveId;
+        if (!map.has(key)) map.set(key, { name: e.moveName, genre: e.genre, count: 0 });
+        map.get(key).count++;
+      });
+      return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 10);
+    }, [practiceLog]);
+    const calendarData = useMemo(() => {
+      const now = /* @__PURE__ */ new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startDow = (firstDay.getDay() + 6) % 7;
+      const days = [];
+      for (let i = 0; i < startDow; i++) days.push(null);
+      for (let d = 1; d <= lastDay.getDate(); d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const count = practiceLog.filter((e) => e.date === dateStr).length;
+        days.push({ day: d, dateStr, count, isToday: dateStr === todayStr() });
+      }
+      return { year, month, days, monthLabel: `${year}\u5E74${month + 1}\u6708` };
+    }, [practiceLog]);
+    const summary = useMemo(() => {
+      const today = todayStr();
+      const todayCount = practiceLog.filter((e) => e.date === today).length;
+      const weekCount = weekStats.reduce((s, d) => s + d.count, 0);
+      const cutoff28 = /* @__PURE__ */ new Date();
+      cutoff28.setDate(cutoff28.getDate() - 28);
+      const monthCount = practiceLog.filter((e) => e.date >= cutoff28.toISOString().slice(0, 10)).length;
+      const totalDays = practiceDates.size;
+      return { todayCount, weekCount, monthCount, totalDays, totalLogs: practiceLog.length };
+    }, [practiceLog, weekStats, practiceDates]);
     if (practiceLog.length === 0) return /* @__PURE__ */ React.createElement("div", { className: "text-center py-24 text-gray-400" }, /* @__PURE__ */ React.createElement("div", { className: "text-5xl mb-3" }, "\u{1F4C5}"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium" }, "\u307E\u3060\u7DF4\u7FD2\u30ED\u30B0\u304C\u3042\u308A\u307E\u305B\u3093"), /* @__PURE__ */ React.createElement("p", { className: "text-xs mt-1" }, "DB\u30BF\u30D6\u3067\u30E0\u30FC\u30D6\u306B\u30AB\u30FC\u30BD\u30EB\u3092\u5408\u308F\u305B", /* @__PURE__ */ React.createElement("br", null), "\u2713 \u30DC\u30BF\u30F3\u3067\u7DF4\u7FD2\u3092\u8A18\u9332\u3067\u304D\u307E\u3059"));
-    return /* @__PURE__ */ React.createElement("div", { className: "space-y-5" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg border border-gray-200 p-5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 mb-4" }, "\u4ECA\u9031\u306E\u7DF4\u7FD2"), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, weekStats.map(({ label, count, isToday }) => /* @__PURE__ */ React.createElement("div", { key: label, className: "flex-1 flex flex-col items-center gap-1.5" }, /* @__PURE__ */ React.createElement("div", { className: "w-full flex flex-col justify-end", style: { height: 48 } }, count > 0 && /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { className: "space-y-5" }, /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setSubTab("stats"), className: `flex-1 py-2 rounded-xl text-sm font-bold transition-all ${subTab === "stats" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}` }, "\u{1F4CA} \u7D71\u8A08"), /* @__PURE__ */ React.createElement("button", { onClick: () => setSubTab("history"), className: `flex-1 py-2 rounded-xl text-sm font-bold transition-all ${subTab === "history" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}` }, "\u{1F4CB} \u5C65\u6B74")), subTab === "stats" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-3" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4 text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-2xl font-bold text-gray-800" }, summary.todayCount), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-400 mt-0.5" }, "\u4ECA\u65E5")), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4 text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-2xl font-bold text-gray-800" }, summary.weekCount), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-400 mt-0.5" }, "\u4ECA\u9031")), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4 text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-2xl font-bold text-gray-800" }, summary.monthCount), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-400 mt-0.5" }, "\u904E\u53BB28\u65E5")), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4 text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-2xl font-bold text-gray-800" }, summary.totalLogs), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-400 mt-0.5" }, "\u5168\u671F\u9593"))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 mb-3" }, "\u9023\u7D9A\u7DF4\u7FD2\u65E5\u6570"), /* @__PURE__ */ React.createElement("div", { className: "flex gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 bg-gray-50 rounded-xl p-4 text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-3xl font-bold text-gray-800" }, streak.current, /* @__PURE__ */ React.createElement("span", { className: "text-base text-gray-400 ml-0.5" }, "\u65E5")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mt-1" }, "\u73FE\u5728\u306E\u30B9\u30C8\u30EA\u30FC\u30AF")), /* @__PURE__ */ React.createElement("div", { className: "flex-1 bg-gray-50 rounded-xl p-4 text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-3xl font-bold text-gray-800" }, streak.best, /* @__PURE__ */ React.createElement("span", { className: "text-base text-gray-400 ml-0.5" }, "\u65E5")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mt-1" }, "\u6700\u9577\u8A18\u9332")))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 mb-4" }, "\u4ECA\u9031\u306E\u7DF4\u7FD2"), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, weekStats.map(({ label, count, isToday }) => /* @__PURE__ */ React.createElement("div", { key: label, className: "flex-1 flex flex-col items-center gap-1.5" }, /* @__PURE__ */ React.createElement("div", { className: "w-full flex flex-col justify-end", style: { height: 56 } }, count > 0 && /* @__PURE__ */ React.createElement(
       "div",
       {
-        className: `w-full rounded-t-lg transition-all ${isToday ? "bg-gray-500" : "bg-gray-200"}`,
-        style: { height: Math.min(48, count * 14 + 10) }
+        className: `w-full rounded-t-lg transition-all ${isToday ? "bg-gray-700" : "bg-gray-300"}`,
+        style: { height: Math.min(56, count * 12 + 10) }
       }
-    )), /* @__PURE__ */ React.createElement("span", { className: `text-xs font-bold ${isToday ? "text-gray-800" : "text-gray-400"}` }, label), count > 0 && /* @__PURE__ */ React.createElement("span", { className: "text-[10px] text-gray-500 font-medium" }, count))))), genreStats.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg border border-gray-200 p-5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 mb-1" }, "\u30B8\u30E3\u30F3\u30EB\u5206\u5E03 ", /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 font-normal" }, "\uFF08\u904E\u53BB28\u65E5\uFF09")), /* @__PURE__ */ React.createElement("div", { className: "space-y-2.5 mt-3" }, genreStats.map(({ genre, count, pct }, i) => /* @__PURE__ */ React.createElement("div", { key: genre, className: "flex items-center gap-3" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-600 w-28 truncate font-medium" }, genre), /* @__PURE__ */ React.createElement("div", { className: "flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: `h-full rounded-full transition-all ${GENRE_COLORS[i % GENRE_COLORS.length]}`, style: { width: `${pct}%` } })), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 w-10 text-right" }, count, "\u56DE ", /* @__PURE__ */ React.createElement("span", { className: "text-gray-300" }, pct, "%")))))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800" }, "\u7DF4\u7FD2\u5C65\u6B74"), /* @__PURE__ */ React.createElement("button", { onClick: onClear, className: "text-xs text-gray-400 hover:text-gray-600" }, "\u5168\u524A\u9664")), grouped.map(([date, entries]) => /* @__PURE__ */ React.createElement("div", { key: date, className: "bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm" }, /* @__PURE__ */ React.createElement("div", { className: "px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-600" }, date), /* @__PURE__ */ React.createElement("span", { className: "text-[10px] text-gray-400" }, entries.length, "\u4EF6")), /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-gray-50" }, entries.map((e) => /* @__PURE__ */ React.createElement("div", { key: e.id, className: "flex items-center gap-3 px-4 py-2.5" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-700 text-sm" }, "\u2713"), /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-semibold text-gray-800" }, e.moveName), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 ml-2" }, e.genre, " \xB7 ", e.level)), /* @__PURE__ */ React.createElement("button", { onClick: () => onDelete(e.id), className: "text-gray-200 hover:text-gray-400 text-xs transition-colors" }, "\u2715"))))))));
+    )), /* @__PURE__ */ React.createElement("span", { className: `text-xs font-bold ${isToday ? "text-gray-800" : "text-gray-400"}` }, label), count > 0 && /* @__PURE__ */ React.createElement("span", { className: "text-[10px] text-gray-500 font-medium" }, count))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 mb-3" }, calendarData.monthLabel), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-7 gap-1 mb-1" }, weekDayLabels.map((d) => /* @__PURE__ */ React.createElement("div", { key: d, className: "text-center text-[10px] text-gray-400 font-medium" }, d))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-7 gap-1" }, calendarData.days.map((cell, i) => {
+      if (!cell) return /* @__PURE__ */ React.createElement("div", { key: `pad-${i}` });
+      const intensity = cell.count === 0 ? "bg-gray-50" : cell.count <= 2 ? "bg-gray-200" : cell.count <= 5 ? "bg-gray-400" : "bg-gray-600";
+      return /* @__PURE__ */ React.createElement("div", { key: cell.dateStr, className: `aspect-square rounded-md flex items-center justify-center relative ${intensity} ${cell.isToday ? "ring-2 ring-gray-800 ring-offset-1" : ""}`, title: `${cell.dateStr}: ${cell.count}\u56DE` }, /* @__PURE__ */ React.createElement("span", { className: `text-[10px] font-medium ${cell.count > 2 ? "text-white" : "text-gray-600"}` }, cell.day), cell.count > 0 && /* @__PURE__ */ React.createElement("span", { className: `absolute -bottom-0.5 text-[7px] font-bold ${cell.count > 2 ? "text-white/70" : "text-gray-400"}` }, cell.count));
+    })), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 mt-3 justify-end" }, /* @__PURE__ */ React.createElement("span", { className: "text-[10px] text-gray-400" }, "\u5C11"), /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 rounded-sm bg-gray-50 border border-gray-200" }), /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 rounded-sm bg-gray-200" }), /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 rounded-sm bg-gray-400" }), /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 rounded-sm bg-gray-600" }), /* @__PURE__ */ React.createElement("span", { className: "text-[10px] text-gray-400" }, "\u591A"))), genreStats.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 mb-1" }, "\u30B8\u30E3\u30F3\u30EB\u5206\u5E03 ", /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 font-normal" }, "\uFF08\u904E\u53BB28\u65E5\uFF09")), /* @__PURE__ */ React.createElement("div", { className: "space-y-2.5 mt-3" }, genreStats.map(({ genre, count, pct }) => /* @__PURE__ */ React.createElement("div", { key: genre, className: "flex items-center gap-3" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-600 w-28 truncate font-medium" }, genre), /* @__PURE__ */ React.createElement("div", { className: "flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "h-full rounded-full transition-all bg-gray-500", style: { width: `${pct}%` } })), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 w-16 text-right" }, count, "\u56DE (", pct, "%)"))))), levelStats.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 mb-1" }, "\u96E3\u6613\u5EA6\u5225 ", /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 font-normal" }, "\uFF08\u904E\u53BB28\u65E5\uFF09")), /* @__PURE__ */ React.createElement("div", { className: "space-y-2.5 mt-3" }, levelStats.map(({ level, count, pct }) => /* @__PURE__ */ React.createElement("div", { key: level, className: "flex items-center gap-3" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-600 w-16 font-medium" }, level), /* @__PURE__ */ React.createElement("div", { className: "flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "h-full rounded-full transition-all bg-gray-400", style: { width: `${pct}%` } })), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 w-16 text-right" }, count, "\u56DE (", pct, "%)"))))), topMoves.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-5" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800 mb-3" }, "\u3088\u304F\u7DF4\u7FD2\u3059\u308B\u30E0\u30FC\u30D6 TOP", Math.min(topMoves.length, 10)), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, topMoves.map((m, i) => /* @__PURE__ */ React.createElement("div", { key: m.name, className: "flex items-center gap-3" }, /* @__PURE__ */ React.createElement("span", { className: `w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i < 3 ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-500"}` }, i + 1), /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-semibold text-gray-800 truncate block" }, m.name), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400" }, m.genre)), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-bold text-gray-600 shrink-0" }, m.count, "\u56DE"))))), /* @__PURE__ */ React.createElement("div", { className: "text-center text-xs text-gray-400 py-2" }, "\u5168", summary.totalDays, "\u65E5 \xB7 ", summary.totalLogs, "\u56DE\u306E\u7DF4\u7FD2\u3092\u8A18\u9332\u6E08\u307F")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("h3", { className: "font-bold text-gray-800" }, "\u7DF4\u7FD2\u5C65\u6B74"), /* @__PURE__ */ React.createElement("button", { onClick: onClear, className: "text-xs text-gray-400 hover:text-gray-600" }, "\u5168\u524A\u9664")), grouped.map(([date, entries]) => /* @__PURE__ */ React.createElement("div", { key: date, className: "bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm" }, /* @__PURE__ */ React.createElement("div", { className: "px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-gray-600" }, date), /* @__PURE__ */ React.createElement("span", { className: "text-[10px] text-gray-400" }, entries.length, "\u4EF6")), /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-gray-50" }, entries.map((e) => /* @__PURE__ */ React.createElement("div", { key: e.id, className: "flex items-center gap-3 px-4 py-2.5" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-700 text-sm" }, "\u2713"), /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-semibold text-gray-800" }, e.moveName), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 ml-2" }, e.genre, " \xB7 ", e.level)), /* @__PURE__ */ React.createElement("button", { onClick: () => onDelete(e.id), className: "text-gray-200 hover:text-gray-400 text-xs transition-colors" }, "\u2715")))))))));
   }
   function RhythmInputTab({ songConfig, onApplyConfig }) {
     const [phase, setPhase] = useState("idle");
@@ -2481,7 +2813,8 @@ ${notionMoves.length}\u4EF6\u306E\u30E0\u30FC\u30D6\u3092\u30DE\u30FC\u30B8\u305
       {
         savedChoreos,
         onUpdate: (updated) => setSavedChoreos((prev) => prev.map((c) => c.id === updated.id ? updated : c)),
-        onDelete: (id) => setSavedChoreos((prev) => prev.filter((c) => c.id !== id))
+        onDelete: (id) => setSavedChoreos((prev) => prev.filter((c) => c.id !== id)),
+        allMoves: moves
       }
     ), tab === "rhythm" && /* @__PURE__ */ React.createElement(
       RhythmInputTab,
