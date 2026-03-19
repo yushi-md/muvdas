@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover"/>
   <title>Muvdas</title>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -14,6 +14,10 @@
     #root { height: 100%; }
     select { -webkit-appearance: auto; }
     input[type=range] { cursor: pointer; }
+    /* Prevent iOS Safari auto-zoom on input focus */
+    @media screen and (max-width: 768px) {
+      input, textarea, select { font-size: 16px !important; }
+    }
 
     /* ── DARK MODE (monochrome) ── */
     [data-theme="dark"] { color-scheme: dark; }
